@@ -23,23 +23,9 @@ BUTTON_COLOR = (0, 150, 0)
 BUTTON_HOVER_COLOR = (0, 200, 0)
 BUTTON_TEXT_COLOR = WHITE
 
-# Sample Sudoku board
-board = [
-    [0, 0, 0,  0, 7, 2,  0, 0, 0],
-    [6, 0, 0,  0, 3, 0,  0, 0, 0],
-    [0, 2, 7,  5, 0, 9,  6, 1, 0],
-
-    [1, 0, 5,  0, 6, 0,  4, 2, 0],
-    [9, 0, 2,  0, 1, 5,  3, 0, 0],
-    [0, 0, 0,  9, 0, 0,  0, 6, 1],
-
-    [4, 0, 6,  1, 0, 0,  8, 3, 0],
-    [7, 0, 0,  0, 8, 0,  1, 9, 0],
-    [0, 1, 8,  0, 9, 6,  0, 4, 5],
-]
-
+# Empty Sudoku board (no pre-filled cells)
+board = [[0 for _ in range(9)] for _ in range(9)]
 original_board = [row[:] for row in board]  # Store original board for comparison
-
 
 # Create a window
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -83,7 +69,8 @@ def draw_numbers(board):
     for i in range(GRID_SIZE):
         for j in range(GRID_SIZE):
             if board[i][j] != 0:
-                color = BLACK if original_board[i][j] != 0 else BLUE  # Blue for solved values
+                # Blue for numbers added by the solver, black for user-entered numbers
+                color = BLUE if original_board[i][j] == 0 else BLACK
                 text = FONT.render(str(board[i][j]), True, color)
                 x = j * CELL_SIZE + CELL_SIZE // 2 - text.get_width() // 2
                 y = i * CELL_SIZE + CELL_SIZE // 2 - text.get_height() // 2
@@ -103,6 +90,76 @@ def draw_button():
 
     return button_rect
 
+def handle_mouse_click(pos):
+    """Select the cell based on the mouse click position."""
+    global selected_row, selected_col
+    if pos[1] < WIDTH:  # Ensure click is within grid
+        selected_row = pos[1] // CELL_SIZE
+        selected_col = pos[0] // CELL_SIZE
+
+def handle_key_input(event):
+    """Handle number input from the user."""
+    if selected_row is not None and selected_col is not None:
+        if event.unicode.isdigit() and 1 <= int(event.unicode) <= 9:
+            board[selected_row][selected_col] = int(event.unicode)
+            original_board[selected_row][selected_col] = int(event.unicode)  # Mark as user-entered
+        elif event.key == pygame.K_BACKSPACE:  # Clear the cell
+            board[selected_row][selected_col] = 0
+            original_board[selected_row][selected_col] = 0  # Clear the original board too
+
+def draw_selected_cell():
+    if selected_row is not None and selected_col is not None:
+        pygame.draw.rect(screen, GRAY, (selected_col * CELL_SIZE, selected_row * CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
+
+def move_to_next_cell():
+    """Move the selection to the next cell, wrapping around rows and columns."""
+    global selected_row, selected_col
+    if selected_row is not None and selected_col is not None:
+        selected_col += 1
+        if selected_col >= GRID_SIZE:  # Move to next row if end of column is reached
+            selected_col = 0
+            selected_row += 1
+            if selected_row >= GRID_SIZE:  # Wrap around to the first cell
+                selected_row = 0
+
+def move_to_previous_cell():
+    """Move the selection to the previous cell, wrapping around rows and columns."""
+    global selected_row, selected_col
+    if selected_row is not None and selected_col is not None:
+        selected_col -= 1
+        if selected_col < 0:  # Move to previous row if start of column is reached
+            selected_col = GRID_SIZE - 1
+            selected_row -= 1
+            if selected_row < 0:  # Wrap around to the last cell
+                selected_row = GRID_SIZE - 1
+
+def move_up():
+    global selected_row
+    selected_row -= 1
+    if selected_row < 0:
+        selected_row = GRID_SIZE - 1
+
+def move_down():
+    global selected_row
+    selected_row += 1
+    if selected_row >= GRID_SIZE:
+        selected_row = 0
+
+def move_left():
+    global selected_col
+    selected_col -= 1
+    if selected_col < 0:
+        selected_col = GRID_SIZE - 1
+
+def move_right():
+    global selected_col
+    selected_col += 1
+    if selected_col >= GRID_SIZE:
+        selected_col = 0
+
+# Initial state
+selected_row, selected_col = 0, 0  # Start at top-left (0,0)
+
 def main():
     solved = False
     while True:
@@ -114,8 +171,27 @@ def main():
                 button_rect = draw_button()
                 if button_rect.collidepoint(event.pos) and not solved:
                     solved = solve_sudoku(board)  # Solve the Sudoku puzzle
+                else:
+                    handle_mouse_click(event.pos)  # Handle grid click
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_TAB:  # Move to the next cell on Tab key press
+                    if pygame.key.get_mods() & pygame.KMOD_SHIFT:  # Check if Shift is pressed
+                        move_to_previous_cell()
+                    else:
+                        move_to_next_cell()
+                elif event.key == pygame.K_UP:
+                    move_up()  # Move up
+                elif event.key == pygame.K_DOWN:
+                    move_down()  # Move down
+                elif event.key == pygame.K_LEFT:
+                    move_left()  # Move left
+                elif event.key == pygame.K_RIGHT:
+                    move_right()  # Move right
+                else:
+                    handle_key_input(event)  # Handle number input
 
         draw_grid()
+        draw_selected_cell()
         draw_numbers(board)
         button_rect = draw_button()  # Draw the solve button
 
